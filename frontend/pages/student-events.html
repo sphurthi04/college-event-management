@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Browse Events - Student</title>
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main-content">
+    <header class="topbar" id="topbar"></header>
+    <main class="page-content">
+      <div id="alert-box"></div>
+
+      <!-- Filters -->
+      <div class="card mb-3">
+        <div class="card-body" style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+          <input type="text" id="search" class="form-control" placeholder="🔍 Search events..." style="max-width:250px" oninput="filterEvents()">
+          <select id="filter-category" class="form-control" style="max-width:180px" onchange="filterEvents()">
+            <option value="">All Categories</option>
+            <option value="technical">💻 Technical</option>
+            <option value="cultural">🎭 Cultural</option>
+            <option value="sports">⚽ Sports</option>
+            <option value="academic">📚 Academic</option>
+            <option value="workshop">🔧 Workshop</option>
+            <option value="seminar">🎤 Seminar</option>
+            <option value="fest">🎉 Fest</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="events-grid" class="events-grid"></div>
+    </main>
+  </div>
+</div>
+
+<!-- Event Detail Modal -->
+<div class="modal-overlay" id="event-modal">
+  <div class="modal" style="max-width:650px">
+    <div class="modal-header">
+      <h3 class="modal-title" id="modal-event-title">Event Details</h3>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body" id="modal-event-body"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal()">Close</button>
+      <button class="btn btn-primary" id="register-btn" onclick="registerForEvent()">📝 Register Now</button>
+    </div>
+  </div>
+</div>
+
+<script src="../js/api.js"></script>
+<script>
+  const user = requireAuth(['student']);
+  let allEvents = [], myRegistrations = new Set(), selectedEventId = null;
+
+  if (user) {
+    document.getElementById('sidebar').innerHTML = renderSidebar('student', 'student-events');
+    document.getElementById('topbar').innerHTML = renderTopbar('Browse Events');
+    loadEvents();
+  }
+
+  async function loadEvents() {
+    try {
+      const [eventsData, myRegsData] = await Promise.all([
+        api('GET', '/events/all'),
+        api('GET', '/registrations/my')
+      ]);
+      allEvents = eventsData.data;
+      myRegistrations = new Set(myRegsData.data.map(r => r.event?._id));
+      renderEvents(allEvents);
+    } catch (err) { showAlert('alert-box', err.message, 'error'); }
+  }
+
+  function filterEvents() {
+    const search = document.getElementById('search').value.toLowerCase();
+    const category = document.getElementById('filter-category').value;
+    const filtered = allEvents.filter(e =>
+      (!search || e.title.toLowerCase().includes(search) || e.description.toLowerCase().includes(search)) &&
+      (!category || e.category === category)
+    );
+    renderEvents(filtered);
+  }
+
+  function renderEvents(events) {
+    document.getElementById('events-grid').innerHTML = events.length
+      ? events.map(e => {
+          const isRegistered = myRegistrations.has(e._id);
+          const isFull = e.registeredCount >= e.maxParticipants;
+          return `
+          <div class="event-card">
+            <div class="event-card-banner">${categoryEmoji[e.category] || '📌'}</div>
+            <div class="event-card-body">
+              <span class="event-card-category">${e.category}</span>
+              <div class="event-card-title">${e.title}</div>
+              <div class="event-card-meta">
+                <span>📅 ${formatDate(e.date)}</span>
+                <span>⏰ ${e.startTime} - ${e.endTime}</span>
+                <span>🏛️ ${e.venue?.name || '-'}, ${e.venue?.location || ''}</span>
+                <span>🎪 ${e.organizer?.clubName || '-'} | ${e.organizer?.collegeName || '-'}</span>
+                <span>👥 ${e.registeredCount}/${e.maxParticipants} registered</span>
+              </div>
+            </div>
+            <div class="event-card-footer">
+              ${isRegistered ? '<span class="badge badge-success">✅ Registered</span>' : isFull ? '<span class="badge badge-danger">🔴 Full</span>' : statusBadge(e.status)}
+              <button class="btn btn-sm btn-primary" onclick="viewEvent('${e._id}')">View Details</button>
+            </div>
+          </div>`;
+        }).join('')
+      : '<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">🔍</div><h3>No events found</h3></div>';
+  }
+
+  async function viewEvent(id) {
+    try {
+      const data = await api('GET', `/events/${id}`);
+      const e = data.data;
+      selectedEventId = id;
+      const isRegistered = myRegistrations.has(id);
+      const isFull = e.registeredCount >= e.maxParticipants;
+
+      document.getElementById('modal-event-title').textContent = e.title;
+      document.getElementById('modal-event-body').innerHTML = `
+        <span class="event-card-category">${e.category}</span>
+        <p style="margin:12px 0;color:#555">${e.description}</p>
+        <table style="width:100%;border-collapse:collapse">
+          <tr><td style="padding:8px;background:#f5f5f5;font-weight:600">📅 Date</td><td style="padding:8px">${formatDate(e.date)}</td></tr>
+          <tr><td style="padding:8px;background:#f5f5f5;font-weight:600">⏰ Time</td><td style="padding:8px">${e.startTime} - ${e.endTime}</td></tr>
+          <tr><td style="padding:8px;background:#f5f5f5;font-weight:600">🏛️ Venue</td><td style="padding:8px">${e.venue?.name}, ${e.venue?.location}</td></tr>
+          <tr><td style="padding:8px;background:#f5f5f5;font-weight:600">👥 Capacity</td><td style="padding:8px">${e.registeredCount}/${e.maxParticipants}</td></tr>
+          <tr><td style="padding:8px;background:#f5f5f5;font-weight:600">🎪 Organizer</td><td style="padding:8px">${e.organizer?.name} (${e.organizer?.clubName})</td></tr>
+          ${e.googleFormLink ? `<tr><td style="padding:8px;background:#f5f5f5;font-weight:600">📝 Form</td><td style="padding:8px"><a href="${e.googleFormLink}" target="_blank" class="btn btn-sm btn-secondary">Open Google Form</a></td></tr>` : ''}
+        </table>`;
+
+      const regBtn = document.getElementById('register-btn');
+      if (isRegistered) { regBtn.textContent = '✅ Already Registered'; regBtn.disabled = true; }
+      else if (isFull) { regBtn.textContent = '🔴 Event Full'; regBtn.disabled = true; }
+      else { regBtn.textContent = '📝 Register Now'; regBtn.disabled = false; }
+
+      document.getElementById('event-modal').classList.add('active');
+    } catch (err) { showAlert('alert-box', err.message, 'error'); }
+  }
+
+  function closeModal() { document.getElementById('event-modal').classList.remove('active'); }
+
+  async function registerForEvent() {
+    if (!selectedEventId) return;
+    showLoading('register-btn', 'Registering...');
+    try {
+      await api('POST', '/registrations', { eventId: selectedEventId });
+      myRegistrations.add(selectedEventId);
+      showAlert('alert-box', '🎉 Registered successfully! Check your email for confirmation.', 'success');
+      closeModal();
+      loadEvents();
+    } catch (err) { showAlert('alert-box', err.message, 'error'); }
+    finally { hideLoading('register-btn'); }
+  }
+</script>
+</body>
+</html>

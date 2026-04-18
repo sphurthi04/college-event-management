@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Registrations - Organizer</title>
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main-content">
+    <header class="topbar" id="topbar"></header>
+    <main class="page-content">
+      <div id="alert-box"></div>
+
+      <div class="card mb-3">
+        <div class="card-header"><h3 class="card-title">📋 Select Event</h3></div>
+        <div class="card-body">
+          <select id="event-select" class="form-control" onchange="loadRegistrations()" style="max-width:400px">
+            <option value="">-- Select an event --</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="card" id="reg-card" style="display:none">
+        <div class="card-header">
+          <h3 class="card-title" id="reg-title">Registrations</h3>
+          <div style="display:flex;gap:8px">
+            <span id="reg-count" class="badge badge-info"></span>
+            <button class="btn btn-success btn-sm" onclick="generateCertificates()">🏅 Generate Certificates</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="table-wrapper">
+            <table>
+              <thead><tr><th>Student Name</th><th>Email</th><th>College</th><th>Registered At</th><th>Attendance</th><th>Action</th></tr></thead>
+              <tbody id="reg-table"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<script src="../js/api.js"></script>
+<script>
+  const user = requireAuth(['organizer']);
+  if (user) {
+    document.getElementById('sidebar').innerHTML = renderSidebar('organizer', 'organizer-registrations');
+    document.getElementById('topbar').innerHTML = renderTopbar('Registrations & Attendance');
+    loadEvents();
+  }
+
+  async function loadEvents() {
+    try {
+      const data = await api('GET', '/events');
+      const sel = document.getElementById('event-select');
+      data.data.forEach(e => sel.innerHTML += `<option value="${e._id}">${e.title} (${formatDate(e.date)})</option>`);
+
+      // Auto-select if query param
+      const params = new URLSearchParams(window.location.search);
+      const eventId = params.get('event');
+      if (eventId) { sel.value = eventId; loadRegistrations(); }
+    } catch (err) { showAlert('alert-box', err.message, 'error'); }
+  }
+
+  async function loadRegistrations() {
+    const eventId = document.getElementById('event-select').value;
+    if (!eventId) { document.getElementById('reg-card').style.display = 'none'; return; }
+    try {
+      const data = await api('GET', `/registrations/event/${eventId}`);
+      const regs = data.data;
+      document.getElementById('reg-card').style.display = 'block';
+      document.getElementById('reg-count').textContent = `${regs.length} registered`;
+      document.getElementById('reg-table').innerHTML = regs.length
+        ? regs.map(r => `
+          <tr>
+            <td><b>${r.student?.name || '-'}</b></td>
+            <td>${r.student?.email || '-'}</td>
+            <td>${r.student?.collegeName || '-'}</td>
+            <td>${formatDate(r.registeredAt)}</td>
+            <td>${r.attended ? '<span class="badge badge-success">✅ Present</span>' : '<span class="badge badge-gray">⬜ Absent</span>'}</td>
+            <td>
+              <button class="btn btn-sm ${r.attended ? 'btn-warning' : 'btn-success'}" onclick="markAttendance('${r._id}', ${!r.attended})">
+                ${r.attended ? '❌ Mark Absent' : '✅ Mark Present'}
+              </button>
+            </td>
+          </tr>`).join('')
+        : '<tr><td colspan="6" class="text-center text-muted">No registrations yet</td></tr>';
+    } catch (err) { showAlert('alert-box', err.message, 'error'); }
+  }
+
+  async function markAttendance(regId, attended) {
+    try {
+      await api('PUT', `/registrations/${regId}/attendance`, { attended });
+      loadRegistrations();
+    } catch (err) { showAlert('alert-box', err.message, 'error'); }
+  }
+
+  async function generateCertificates() {
+    const eventId = document.getElementById('event-select').value;
+    if (!eventId) return;
+    if (!confirm('Generate certificates for all attended students?')) return;
+    try {
+      const data = await api('POST', '/certificates/generate', { eventId });
+      showAlert('alert-box', data.message, 'success');
+    } catch (err) { showAlert('alert-box', err.message, 'error'); }
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Venues - Organizer</title>
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main-content">
+    <header class="topbar" id="topbar"></header>
+    <main class="page-content">
+      <div id="alert-box"></div>
+      <div class="card">
+        <div class="card-header"><h3 class="card-title">🏛️ Available Venues</h3></div>
+        <div class="card-body">
+          <div id="venues-grid" class="events-grid"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+<script src="../js/api.js"></script>
+<script>
+  const user = requireAuth(['organizer']);
+  if (user) {
+    document.getElementById('sidebar').innerHTML = renderSidebar('organizer', 'organizer-venues');
+    document.getElementById('topbar').innerHTML = renderTopbar('Available Venues');
+    loadVenues();
+  }
+  async function loadVenues() {
+    try {
+      const data = await api('GET', '/venues');
+      document.getElementById('venues-grid').innerHTML = data.data.length
+        ? data.data.map(v => `
+          <div class="event-card">
+            <div class="event-card-banner" style="background:linear-gradient(135deg,#10B981,#059669)">🏛️</div>
+            <div class="event-card-body">
+              <span class="event-card-category">${v.college}</span>
+              <div class="event-card-title">${v.name}</div>
+              <div class="event-card-meta">
+                <span>📍 ${v.location}</span>
+                <span>👥 Capacity: ${v.capacity.toLocaleString()}</span>
+                ${v.facilities?.length ? `<span>🔧 ${v.facilities.join(', ')}</span>` : ''}
+                ${v.description ? `<span>📝 ${v.description}</span>` : ''}
+              </div>
+            </div>
+            <div class="event-card-footer">
+              ${statusBadge(v.status)}
+            </div>
+          </div>`).join('')
+        : '<div class="empty-state"><div class="empty-icon">🏛️</div><h3>No venues available</h3><p>Admin will add venues for your college</p></div>';
+    } catch (err) { showAlert('alert-box', err.message, 'error'); }
+  }
+</script>
+</body>
+</html>

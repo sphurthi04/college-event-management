@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard - College Event Management</title>
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main-content">
+    <header class="topbar" id="topbar"></header>
+    <main class="page-content">
+      <div id="alert-box"></div>
+
+      <!-- Stats Grid -->
+      <div class="stats-grid" id="stats-grid">
+        <div class="stat-card"><div class="stat-icon blue">🎪</div><div class="stat-info"><div class="stat-value" id="stat-organizers">-</div><div class="stat-label">Total Organizers</div></div></div>
+        <div class="stat-card"><div class="stat-icon green">🎓</div><div class="stat-info"><div class="stat-value" id="stat-students">-</div><div class="stat-label">Total Students</div></div></div>
+        <div class="stat-card"><div class="stat-icon purple">🏛️</div><div class="stat-info"><div class="stat-value" id="stat-venues">-</div><div class="stat-label">Total Venues</div></div></div>
+        <div class="stat-card"><div class="stat-icon orange">📅</div><div class="stat-info"><div class="stat-value" id="stat-events">-</div><div class="stat-label">Total Events</div></div></div>
+        <div class="stat-card"><div class="stat-icon red">⏳</div><div class="stat-info"><div class="stat-value" id="stat-pending">-</div><div class="stat-label">Pending Approvals</div></div></div>
+        <div class="stat-card"><div class="stat-icon teal">✉️</div><div class="stat-info"><div class="stat-value" id="stat-invitations">-</div><div class="stat-label">Total Invitations</div></div></div>
+      </div>
+
+      <!-- Pending Approvals -->
+      <div class="card mb-3">
+        <div class="card-header">
+          <h3 class="card-title">⏳ Pending Organizer Approvals</h3>
+          <a href="admin-organizers.html" class="btn btn-sm btn-secondary">View All</a>
+        </div>
+        <div class="card-body">
+          <div class="table-wrapper">
+            <table>
+              <thead><tr><th>Name</th><th>Email</th><th>College</th><th>Club</th><th>Registered</th><th>Actions</th></tr></thead>
+              <tbody id="pending-table"><tr><td colspan="6" class="text-center text-muted">Loading...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent Events -->
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title">📅 Recent Events</h3>
+          <a href="admin-events.html" class="btn btn-sm btn-secondary">View All</a>
+        </div>
+        <div class="card-body">
+          <div class="table-wrapper">
+            <table>
+              <thead><tr><th>Title</th><th>Organizer</th><th>Venue</th><th>Date</th><th>Status</th></tr></thead>
+              <tbody id="events-table"><tr><td colspan="5" class="text-center text-muted">Loading...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<script src="../js/api.js"></script>
+<script>
+  const user = requireAuth(['admin']);
+  if (user) {
+    document.getElementById('sidebar').innerHTML = renderSidebar('admin', 'admin-dashboard');
+    document.getElementById('topbar').innerHTML = renderTopbar('Admin Dashboard');
+    loadDashboard();
+  }
+
+  async function loadDashboard() {
+    try {
+      const [dashData, orgData, eventsData] = await Promise.all([
+        api('GET', '/admin/dashboard'),
+        api('GET', '/admin/organizers?status=pending'),
+        api('GET', '/admin/events')
+      ]);
+
+      const d = dashData.data;
+      document.getElementById('stat-organizers').textContent = d.totalOrganizers;
+      document.getElementById('stat-students').textContent = d.totalStudents;
+      document.getElementById('stat-venues').textContent = d.totalVenues;
+      document.getElementById('stat-events').textContent = d.totalEvents;
+      document.getElementById('stat-pending').textContent = d.pendingApprovals;
+      document.getElementById('stat-invitations').textContent = d.sentInvitations + d.receivedInvitations;
+
+      // Pending organizers
+      const pendingOrgs = orgData.data.slice(0, 5);
+      document.getElementById('pending-table').innerHTML = pendingOrgs.length
+        ? pendingOrgs.map(o => `
+          <tr>
+            <td><b>${o.name}</b></td>
+            <td>${o.email}</td>
+            <td>${o.collegeName}</td>
+            <td>${o.clubName}</td>
+            <td>${formatDate(o.createdAt)}</td>
+            <td>
+              <button class="btn btn-sm btn-success" onclick="approveOrg('${o._id}')">✅ Approve</button>
+              <button class="btn btn-sm btn-danger" onclick="rejectOrg('${o._id}')">❌ Reject</button>
+            </td>
+          </tr>`).join('')
+        : '<tr><td colspan="6" class="text-center text-muted">No pending approvals</td></tr>';
+
+      // Recent events
+      const events = eventsData.data.slice(0, 5);
+      document.getElementById('events-table').innerHTML = events.length
+        ? events.map(e => `
+          <tr>
+            <td><b>${e.title}</b></td>
+            <td>${e.organizer?.name || '-'}</td>
+            <td>${e.venue?.name || '-'}</td>
+            <td>${formatDate(e.date)}</td>
+            <td>${statusBadge(e.status)}</td>
+          </tr>`).join('')
+        : '<tr><td colspan="5" class="text-center text-muted">No events yet</td></tr>';
+
+    } catch (err) {
+      showAlert('alert-box', err.message, 'error');
+    }
+  }
+
+  async function approveOrg(id) {
+    if (!confirm('Approve this organizer?')) return;
+    try {
+      await api('PUT', `/admin/organizers/${id}/approve`);
+      showAlert('alert-box', 'Organizer approved successfully!', 'success');
+      loadDashboard();
+    } catch (err) { showAlert('alert-box', err.message, 'error'); }
+  }
+
+  async function rejectOrg(id) {
+    if (!confirm('Reject this organizer?')) return;
+    try {
+      await api('PUT', `/admin/organizers/${id}/reject`);
+      showAlert('alert-box', 'Organizer rejected.', 'warning');
+      loadDashboard();
+    } catch (err) { showAlert('alert-box', err.message, 'error'); }
+  }
+</script>
+</body>
+</html>

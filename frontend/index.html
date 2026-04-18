@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>College Event Management System</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .role-selector { display: flex; gap: 12px; margin-bottom: 24px; }
+    .role-btn {
+      flex: 1; padding: 12px; border: 2px solid var(--border); border-radius: var(--radius);
+      cursor: pointer; text-align: center; transition: var(--transition); background: white;
+      font-size: 13px; font-weight: 600;
+    }
+    .role-btn:hover, .role-btn.active { border-color: var(--primary); background: var(--primary-light); color: var(--primary); }
+    .role-btn .role-icon { font-size: 24px; display: block; margin-bottom: 4px; }
+    .form-section { display: none; }
+    .form-section.active { display: block; }
+    .divider { text-align: center; margin: 16px 0; color: var(--gray); font-size: 13px; position: relative; }
+    .divider::before, .divider::after { content: ''; position: absolute; top: 50%; width: 40%; height: 1px; background: var(--border); }
+    .divider::before { left: 0; } .divider::after { right: 0; }
+  </style>
+</head>
+<body>
+<div class="auth-page">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <div class="logo-circle">🎓</div>
+      <h1>College Event Management</h1>
+      <p>Centralized platform for college events</p>
+    </div>
+
+    <!-- Auth Tabs -->
+    <div class="auth-tabs">
+      <button class="auth-tab active" onclick="switchTab('login')">Login</button>
+      <button class="auth-tab" onclick="switchTab('register')">Register</button>
+    </div>
+
+    <div id="alert-box"></div>
+
+    <!-- LOGIN FORM -->
+    <div id="login-section" class="form-section active">
+      <div class="role-selector">
+        <div class="role-btn active" onclick="selectRole('admin', this)">
+          <span class="role-icon">👑</span>Admin
+        </div>
+        <div class="role-btn" onclick="selectRole('organizer', this)">
+          <span class="role-icon">🎪</span>Organizer
+        </div>
+        <div class="role-btn" onclick="selectRole('student', this)">
+          <span class="role-icon">🎓</span>Student
+        </div>
+      </div>
+
+      <form id="login-form" onsubmit="handleLogin(event)">
+        <div class="form-group">
+          <label class="form-label">Email Address <span>*</span></label>
+          <input type="email" id="login-email" class="form-control" placeholder="Enter your email" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Password <span>*</span></label>
+          <input type="password" id="login-password" class="form-control" placeholder="Enter your password" required>
+        </div>
+        <button type="submit" id="login-btn" class="btn btn-primary w-100 btn-lg">🔐 Login</button>
+      </form>
+    </div>
+
+    <!-- REGISTER FORM -->
+    <div id="register-section" class="form-section">
+      <div class="auth-tabs" style="margin-bottom:20px">
+        <button class="auth-tab active" onclick="switchRegisterType('student')">Student</button>
+        <button class="auth-tab" onclick="switchRegisterType('organizer')">Club Organizer</button>
+      </div>
+
+      <!-- Student Registration -->
+      <div id="student-reg" class="form-section active">
+        <form id="student-form" onsubmit="handleStudentRegister(event)">
+          <div class="form-group">
+            <label class="form-label">Full Name <span>*</span></label>
+            <input type="text" id="s-name" class="form-control" placeholder="Your full name" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Email Address <span>*</span></label>
+            <input type="email" id="s-email" class="form-control" placeholder="Your email" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Password <span>*</span></label>
+            <input type="password" id="s-password" class="form-control" placeholder="Min 6 characters" required minlength="6">
+          </div>
+          <button type="submit" id="student-reg-btn" class="btn btn-primary w-100 btn-lg">📝 Register as Student</button>
+        </form>
+      </div>
+
+      <!-- Organizer Registration -->
+      <div id="organizer-reg" class="form-section">
+        <form id="organizer-form" onsubmit="handleOrganizerRegister(event)">
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="form-label">Full Name <span>*</span></label>
+              <input type="text" id="o-name" class="form-control" placeholder="Your name" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Phone Number</label>
+              <input type="tel" id="o-phone" class="form-control" placeholder="Phone number">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Email Address <span>*</span></label>
+            <input type="email" id="o-email" class="form-control" placeholder="Your email" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Password <span>*</span></label>
+            <input type="password" id="o-password" class="form-control" placeholder="Min 6 characters" required minlength="6">
+          </div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="form-label">College Name <span>*</span></label>
+              <input type="text" id="o-college" class="form-control" placeholder="Your college" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Club Name <span>*</span></label>
+              <input type="text" id="o-club" class="form-control" placeholder="Your club" required>
+            </div>
+          </div>
+          <div class="alert alert-info">ℹ️ Your account will be reviewed by admin before activation.</div>
+          <button type="submit" id="org-reg-btn" class="btn btn-primary w-100 btn-lg">📝 Register as Organizer</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="js/api.js"></script>
+<script>
+  let selectedRole = 'admin';
+  let regType = 'student';
+
+  // Redirect if already logged in
+  window.addEventListener('load', () => {
+    const user = getUser();
+    if (user && getToken()) redirectByRole(user.role);
+  });
+
+  function switchTab(tab) {
+    document.querySelectorAll('.auth-tabs:first-of-type .auth-tab').forEach((t, i) => t.classList.toggle('active', (tab === 'login' && i === 0) || (tab === 'register' && i === 1)));
+    document.getElementById('login-section').classList.toggle('active', tab === 'login');
+    document.getElementById('register-section').classList.toggle('active', tab === 'register');
+    clearAlert('alert-box');
+  }
+
+  function selectRole(role, el) {
+    selectedRole = role;
+    document.querySelectorAll('.role-btn').forEach(b => b.classList.remove('active'));
+    el.classList.add('active');
+  }
+
+  function switchRegisterType(type) {
+    regType = type;
+    document.querySelectorAll('#register-section .auth-tabs .auth-tab').forEach((t, i) => t.classList.toggle('active', (type === 'student' && i === 0) || (type === 'organizer' && i === 1)));
+    document.getElementById('student-reg').classList.toggle('active', type === 'student');
+    document.getElementById('organizer-reg').classList.toggle('active', type === 'organizer');
+    clearAlert('alert-box');
+  }
+
+  async function handleLogin(e) {
+    e.preventDefault();
+    clearAlert('alert-box');
+    const email = document.getElementById('login-email').value;
+    const password = document.getElementById('login-password').value;
+    showLoading('login-btn', 'Logging in...');
+    try {
+      const data = await api('POST', '/auth/login', { email, password });
+      setAuth(data.token, data.user);
+      showAlert('alert-box', 'Login successful! Redirecting...', 'success');
+      setTimeout(() => redirectByRole(data.user.role), 800);
+    } catch (err) {
+      showAlert('alert-box', err.message, 'error');
+    } finally {
+      hideLoading('login-btn');
+    }
+  }
+
+  async function handleStudentRegister(e) {
+    e.preventDefault();
+    clearAlert('alert-box');
+    showLoading('student-reg-btn', 'Registering...');
+    try {
+      await api('POST', '/auth/register/student', {
+        name: document.getElementById('s-name').value,
+        email: document.getElementById('s-email').value,
+        password: document.getElementById('s-password').value
+      });
+      showAlert('alert-box', 'Registration successful! Please check your email to verify your account.', 'success');
+      document.getElementById('student-form').reset();
+    } catch (err) {
+      showAlert('alert-box', err.message, 'error');
+    } finally {
+      hideLoading('student-reg-btn');
+    }
+  }
+
+  async function handleOrganizerRegister(e) {
+    e.preventDefault();
+    clearAlert('alert-box');
+    showLoading('org-reg-btn', 'Submitting...');
+    try {
+      await api('POST', '/auth/register/organizer', {
+        name: document.getElementById('o-name').value,
+        email: document.getElementById('o-email').value,
+        password: document.getElementById('o-password').value,
+        collegeName: document.getElementById('o-college').value,
+        clubName: document.getElementById('o-club').value,
+        phone: document.getElementById('o-phone').value
+      });
+      showAlert('alert-box', 'Registration submitted! Admin will review and approve your account.', 'success');
+      document.getElementById('organizer-form').reset();
+    } catch (err) {
+      showAlert('alert-box', err.message, 'error');
+    } finally {
+      hideLoading('org-reg-btn');
+    }
+  }
+</script>
+</body>
+</html>

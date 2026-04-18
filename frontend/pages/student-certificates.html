@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Certificates - Student</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <style>
+    .cert-card {
+      background: linear-gradient(135deg, #f8f7ff, #ede9fe);
+      border: 2px solid #4F46E5;
+      border-radius: 12px;
+      padding: 24px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+    .cert-icon { font-size: 48px; }
+    .cert-info { flex: 1; }
+    .cert-title { font-size: 16px; font-weight: 700; color: #1F2937; }
+    .cert-meta { font-size: 13px; color: #6B7280; margin-top: 4px; }
+    .certs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: 20px; }
+  </style>
+</head>
+<body>
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main-content">
+    <header class="topbar" id="topbar"></header>
+    <main class="page-content">
+      <div id="alert-box"></div>
+      <div class="card">
+        <div class="card-header"><h3 class="card-title">🏅 My Certificates</h3></div>
+        <div class="card-body">
+          <div id="certs-container"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+<script src="../js/api.js"></script>
+<script>
+  const user = requireAuth(['student']);
+  if (user) {
+    document.getElementById('sidebar').innerHTML = renderSidebar('student', 'student-certificates');
+    document.getElementById('topbar').innerHTML = renderTopbar('My Certificates');
+    loadCertificates();
+  }
+  async function loadCertificates() {
+    try {
+      const data = await api('GET', '/certificates/my');
+      document.getElementById('certs-container').innerHTML = data.data.length
+        ? `<div class="certs-grid">${data.data.map(c => `
+          <div class="cert-card">
+            <div class="cert-icon">🏅</div>
+            <div class="cert-info">
+              <div class="cert-title">${c.event?.title || 'Event'}</div>
+              <div class="cert-meta">
+                <span>📅 ${c.event?.date ? formatDate(c.event.date) : '-'}</span> &nbsp;|&nbsp;
+                <span>🏷️ ${c.event?.category || '-'}</span>
+              </div>
+              <div class="cert-meta">Issued by: ${c.issuedBy?.name || '-'} | ${formatDate(c.issuedAt)}</div>
+              <div class="cert-meta" style="font-size:11px;color:#9CA3AF">ID: ${c.certificateId}</div>
+            </div>
+            <a href="${API_BASE}/certificates/download/${c.certificateId}" class="btn btn-primary btn-sm" target="_blank">⬇️ Download</a>
+          </div>`).join('')}</div>`
+        : '<div class="empty-state"><div class="empty-icon">🏅</div><h3>No certificates yet</h3><p>Attend events to earn participation certificates</p></div>';
+    } catch (err) { showAlert('alert-box', err.message, 'error'); }
+  }
+</script>
+</body>
+</html>

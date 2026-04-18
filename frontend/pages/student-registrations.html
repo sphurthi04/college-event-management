@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Registrations - Student</title>
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main-content">
+    <header class="topbar" id="topbar"></header>
+    <main class="page-content">
+      <div id="alert-box"></div>
+      <div class="card">
+        <div class="card-header"><h3 class="card-title">📋 My Event Registrations</h3></div>
+        <div class="card-body">
+          <div class="table-wrapper">
+            <table>
+              <thead><tr><th>Event</th><th>Category</th><th>Date</th><th>Venue</th><th>Time</th><th>Attendance</th><th>Registered At</th><th>Action</th></tr></thead>
+              <tbody id="reg-table"><tr><td colspan="8" class="text-center"><div class="spinner"></div></td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+<script src="../js/api.js"></script>
+<script>
+  const user = requireAuth(['student']);
+  if (user) {
+    document.getElementById('sidebar').innerHTML = renderSidebar('student', 'student-registrations');
+    document.getElementById('topbar').innerHTML = renderTopbar('My Registrations');
+    loadRegistrations();
+  }
+  async function loadRegistrations() {
+    try {
+      const data = await api('GET', '/registrations/my');
+      document.getElementById('reg-table').innerHTML = data.data.length
+        ? data.data.map(r => `
+          <tr>
+            <td><b>${r.event?.title || '-'}</b></td>
+            <td><span class="badge badge-info">${r.event?.category || '-'}</span></td>
+            <td>${r.event?.date ? formatDate(r.event.date) : '-'}</td>
+            <td>${r.event?.venue?.name || '-'}</td>
+            <td>${r.event?.startTime || '-'} - ${r.event?.endTime || '-'}</td>
+            <td>${r.attended ? '<span class="badge badge-success">✅ Attended</span>' : '<span class="badge badge-gray">⬜ Not yet</span>'}</td>
+            <td>${formatDate(r.registeredAt)}</td>
+            <td>
+              ${r.event?.googleFormLink ? `<a href="${r.event.googleFormLink}" target="_blank" class="btn btn-sm btn-secondary">📝 Form</a>` : ''}
+              ${r.status === 'registered' ? `<button class="btn btn-sm btn-danger" onclick="cancelReg('${r.event?._id}')">Cancel</button>` : ''}
+            </td>
+          </tr>`).join('')
+        : '<tr><td colspan="8" class="text-center text-muted">No registrations yet. <a href="student-events.html">Browse events</a></td></tr>';
+    } catch (err) { showAlert('alert-box', err.message, 'error'); }
+  }
+  async function cancelReg(eventId) {
+    if (!confirm('Cancel this registration?')) return;
+    try {
+      await api('DELETE', `/registrations/${eventId}`);
+      showAlert('alert-box', 'Registration cancelled.', 'success');
+      loadRegistrations();
+    } catch (err) { showAlert('alert-box', err.message, 'error'); }
+  }
+</script>
+</body>
+</html>

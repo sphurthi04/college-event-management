@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Manage Venues - Admin</title>
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main-content">
+    <header class="topbar" id="topbar"></header>
+    <main class="page-content">
+      <div id="alert-box"></div>
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title">🏛️ Manage Venues</h3>
+          <button class="btn btn-primary" onclick="openModal()">+ Add Venue</button>
+        </div>
+        <div class="card-body">
+          <div class="table-wrapper">
+            <table>
+              <thead><tr><th>Name</th><th>College</th><th>Location</th><th>Capacity</th><th>Status</th><th>Actions</th></tr></thead>
+              <tbody id="venues-table"><tr><td colspan="6" class="text-center"><div class="spinner"></div></td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- Add/Edit Venue Modal -->
+<div class="modal-overlay" id="venue-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 class="modal-title" id="modal-title">Add New Venue</h3>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="modal-alert"></div>
+      <form id="venue-form" onsubmit="handleVenueSubmit(event)">
+        <input type="hidden" id="venue-id">
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label">Venue Name <span>*</span></label>
+            <input type="text" id="v-name" class="form-control" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Capacity <span>*</span></label>
+            <input type="number" id="v-capacity" class="form-control" required min="1">
+          </div>
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label">Location <span>*</span></label>
+            <input type="text" id="v-location" class="form-control" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">College <span>*</span></label>
+            <input type="text" id="v-college" class="form-control" required>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Description</label>
+          <textarea id="v-description" class="form-control" rows="3"></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Facilities (comma-separated)</label>
+          <input type="text" id="v-facilities" class="form-control" placeholder="Projector, AC, Mic, Stage">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Status</label>
+          <select id="v-status" class="form-control">
+            <option value="available">Available</option>
+            <option value="maintenance">Under Maintenance</option>
+            <option value="inactive">Inactive</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Venue Image</label>
+          <input type="file" id="v-image" class="form-control" accept="image/*">
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" id="venue-submit-btn" onclick="document.getElementById('venue-form').requestSubmit()">Save Venue</button>
+    </div>
+  </div>
+</div>
+
+<script src="../js/api.js"></script>
+<script>
+  const user = requireAuth(['admin']);
+  if (user) {
+    document.getElementById('sidebar').innerHTML = renderSidebar('admin', 'admin-venues');
+    document.getElementById('topbar').innerHTML = renderTopbar('Manage Venues');
+    loadVenues();
+  }
+
+  async function loadVenues() {
+    try {
+      const data = await api('GET', '/venues');
+      const venues = data.data;
+      document.getElementById('venues-table').innerHTML = venues.length
+        ? venues.map(v => `
+          <tr>
+            <td><b>${v.name}</b></td>
+            <td>${v.college}</td>
+            <td>${v.location}</td>
+            <td>${v.capacity.toLocaleString()}</td>
+            <td>${statusBadge(v.status)}</td>
+            <td>
+              <button class="btn btn-sm btn-secondary" onclick="editVenue(${JSON.stringify(v).replace(/"/g, '&quot;')})">✏️ Edit</button>
+              <button class="btn btn-sm btn-danger" onclick="deleteVenue('${v._id}')">🗑️</button>
+            </td>
+          </tr>`).join('')
+        : '<tr><td colspan="6" class="text-center text-muted">No venues added yet</td></tr>';
+    } catch (err) { showAlert('alert-box', err.message, 'error'); }
+  }
+
+  function openModal(venue = null) {
+    document.getElementById('venue-modal').classList.add('active');
+    document.getElementById('modal-title').textContent = venue ? 'Edit Venue' : 'Add New Venue';
+    if (venue) {
+      document.getElementById('venue-id').value = venue._id;
+      document.getElementById('v-name').value = venue.name;
+      document.getElementById('v-capacity').value = venue.capacity;
+      document.getElementById('v-location').value = venue.location;
+      document.getElementById('v-college').value = venue.college;
+      document.getElementById('v-description').value = venue.description || '';
+      document.getElementById('v-facilities').value = (venue.facilities || []).join(', ');
+      document.getElementById('v-status').value = venue.status;
+    } else {
+      document.getElementById('venue-form').reset();
+      document.getElementById('venue-id').value = '';
+    }
+  }
+
+  function closeModal() { document.getElementById('venue-modal').classList.remove('active'); }
+  function editVenue(venue) { openModal(venue); }
+
+  async function handleVenueSubmit(e) {
+    e.preventDefault();
+    const id = document.getElementById('venue-id').value;
+    const formData = new FormData();
+    formData.append('name', document.getElementById('v-name').value);
+    formData.append('capacity', document.getElementById('v-capacity').value);
+    formData.append('location', document.getElementById('v-location').value);
+    formData.append('college', document.getElementById('v-college').value);
+    formData.append('description', document.getElementById('v-description').value);
+    formData.append('facilities', document.getElementById('v-facilities').value);
+    formData.append('status', document.getElementById('v-status').value);
+    const img = document.getElementById('v-image').files[0];
+    if (img) formData.append('image', img);
+
+    showLoading('venue-submit-btn', 'Saving...');
+    try {
+      if (id) await api('PUT', `/venues/${id}`, formData, true);
+      else await api('POST', '/venues', formData, true);
+      showAlert('alert-box', `Venue ${id ? 'updated' : 'created'} successfully!`, 'success');
+      closeModal();
+      loadVenues();
+    } catch (err) { showAlert('modal-alert', err.message, 'error'); }
+    finally { hideLoading('venue-submit-btn'); }
+  }
+
+  async function deleteVenue(id) {
+    if (!confirm('Delete this venue?')) return;
+    try {
+      await api('DELETE', `/venues/${id}`);
+      showAlert('alert-box', 'Venue deleted.', 'success');
+      loadVenues();
+    } catch (err) { showAlert('alert-box', err.message, 'error'); }
+  }
+</script>
+</body>
+</html>

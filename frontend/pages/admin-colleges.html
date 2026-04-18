@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Manage Colleges - Admin</title>
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main-content">
+    <header class="topbar" id="topbar"></header>
+    <main class="page-content">
+      <div id="alert-box"></div>
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title">🎓 Manage Colleges</h3>
+          <button class="btn btn-primary" onclick="openModal()">+ Add College</button>
+        </div>
+        <div class="card-body">
+          <div class="table-wrapper">
+            <table>
+              <thead><tr><th>Name</th><th>Location</th><th>Email</th><th>Phone</th><th>Actions</th></tr></thead>
+              <tbody id="colleges-table"><tr><td colspan="5" class="text-center"><div class="spinner"></div></td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<div class="modal-overlay" id="college-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 class="modal-title" id="modal-title">Add College</h3>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="modal-alert"></div>
+      <form id="college-form" onsubmit="handleSubmit(event)">
+        <input type="hidden" id="college-id">
+        <div class="form-group"><label class="form-label">College Name <span>*</span></label><input type="text" id="c-name" class="form-control" required></div>
+        <div class="form-grid">
+          <div class="form-group"><label class="form-label">Location</label><input type="text" id="c-location" class="form-control"></div>
+          <div class="form-group"><label class="form-label">Email</label><input type="email" id="c-email" class="form-control"></div>
+        </div>
+        <div class="form-grid">
+          <div class="form-group"><label class="form-label">Phone</label><input type="text" id="c-phone" class="form-control"></div>
+          <div class="form-group"><label class="form-label">Website</label><input type="url" id="c-website" class="form-control"></div>
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" id="submit-btn" onclick="document.getElementById('college-form').requestSubmit()">Save</button>
+    </div>
+  </div>
+</div>
+
+<script src="../js/api.js"></script>
+<script>
+  const user = requireAuth(['admin']);
+  if (user) {
+    document.getElementById('sidebar').innerHTML = renderSidebar('admin', 'admin-colleges');
+    document.getElementById('topbar').innerHTML = renderTopbar('Manage Colleges');
+    loadColleges();
+  }
+
+  async function loadColleges() {
+    try {
+      const data = await api('GET', '/colleges');
+      document.getElementById('colleges-table').innerHTML = data.data.length
+        ? data.data.map(c => `
+          <tr>
+            <td><b>${c.name}</b></td>
+            <td>${c.location || '-'}</td>
+            <td>${c.email || '-'}</td>
+            <td>${c.phone || '-'}</td>
+            <td>
+              <button class="btn btn-sm btn-secondary" onclick="editCollege(${JSON.stringify(c).replace(/"/g, '&quot;')})">✏️ Edit</button>
+              <button class="btn btn-sm btn-danger" onclick="deleteCollege('${c._id}')">🗑️</button>
+            </td>
+          </tr>`).join('')
+        : '<tr><td colspan="5" class="text-center text-muted">No colleges added</td></tr>';
+    } catch (err) { showAlert('alert-box', err.message, 'error'); }
+  }
+
+  function openModal(c = null) {
+    document.getElementById('college-modal').classList.add('active');
+    document.getElementById('modal-title').textContent = c ? 'Edit College' : 'Add College';
+    if (c) {
+      document.getElementById('college-id').value = c._id;
+      document.getElementById('c-name').value = c.name;
+      document.getElementById('c-location').value = c.location || '';
+      document.getElementById('c-email').value = c.email || '';
+      document.getElementById('c-phone').value = c.phone || '';
+      document.getElementById('c-website').value = c.website || '';
+    } else {
+      document.getElementById('college-form').reset();
+      document.getElementById('college-id').value = '';
+    }
+  }
+
+  function closeModal() { document.getElementById('college-modal').classList.remove('active'); }
+  function editCollege(c) { openModal(c); }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    const id = document.getElementById('college-id').value;
+    const body = { name: document.getElementById('c-name').value, location: document.getElementById('c-location').value, email: document.getElementById('c-email').value, phone: document.getElementById('c-phone').value, website: document.getElementById('c-website').value };
+    showLoading('submit-btn', 'Saving...');
+    try {
+      if (id) await api('PUT', `/colleges/${id}`, body);
+      else await api('POST', '/colleges', body);
+      showAlert('alert-box', `College ${id ? 'updated' : 'added'}!`, 'success');
+      closeModal(); loadColleges();
+    } catch (err) { showAlert('modal-alert', err.message, 'error'); }
+    finally { hideLoading('submit-btn'); }
+  }
+
+  async function deleteCollege(id) {
+    if (!confirm('Remove this college?')) return;
+    try { await api('DELETE', `/colleges/${id}`); showAlert('alert-box', 'College removed.', 'success'); loadColleges(); }
+    catch (err) { showAlert('alert-box', err.message, 'error'); }
+  }
+</script>
+</body>
+</html>

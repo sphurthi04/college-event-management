@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Events - Admin</title>
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main-content">
+    <header class="topbar" id="topbar"></header>
+    <main class="page-content">
+      <div id="alert-box"></div>
+      <div class="card">
+        <div class="card-header"><h3 class="card-title">📅 All Events</h3></div>
+        <div class="card-body">
+          <div class="table-wrapper">
+            <table>
+              <thead><tr><th>Title</th><th>Category</th><th>Organizer</th><th>Venue</th><th>Date</th><th>Time</th><th>Participants</th><th>Status</th></tr></thead>
+              <tbody id="events-table"><tr><td colspan="8" class="text-center"><div class="spinner"></div></td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+<script src="../js/api.js"></script>
+<script>
+  const user = requireAuth(['admin']);
+  if (user) {
+    document.getElementById('sidebar').innerHTML = renderSidebar('admin', 'admin-events');
+    document.getElementById('topbar').innerHTML = renderTopbar('All Events');
+    loadEvents();
+  }
+  async function loadEvents() {
+    try {
+      const data = await api('GET', '/admin/events');
+      document.getElementById('events-table').innerHTML = data.data.length
+        ? data.data.map(e => `
+          <tr>
+            <td><b>${e.title}</b></td>
+            <td><span class="badge badge-info">${e.category}</span></td>
+            <td>${e.organizer?.name || '-'}<br><small class="text-muted">${e.organizer?.collegeName || ''}</small></td>
+            <td>${e.venue?.name || '-'}</td>
+            <td>${formatDate(e.date)}</td>
+            <td>${e.startTime} - ${e.endTime}</td>
+            <td>${e.registeredCount}/${e.maxParticipants}</td>
+            <td>${statusBadge(e.status)}</td>
+          </tr>`).join('')
+        : '<tr><td colspan="8" class="text-center text-muted">No events found</td></tr>';
+    } catch (err) { showAlert('alert-box', err.message, 'error'); }
+  }
+</script>
+</body>
+</html>

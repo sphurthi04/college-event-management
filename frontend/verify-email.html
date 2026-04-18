@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verify Email - College Event Management</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="auth-page">
+  <div class="auth-card" style="text-align:center">
+    <div class="auth-logo">
+      <div class="logo-circle" id="status-icon">⏳</div>
+      <h1 id="status-title">Verifying Email...</h1>
+      <p id="status-msg">Please wait while we verify your email address.</p>
+    </div>
+    <div id="alert-box"></div>
+    <a href="/index.html" class="btn btn-primary mt-2" id="login-link" style="display:none">Go to Login</a>
+  </div>
+</div>
+<script src="js/api.js"></script>
+<script>
+  window.addEventListener('load', async () => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('token');
+    const email = params.get('email');
+    if (!token || !email) {
+      document.getElementById('status-icon').textContent = '❌';
+      document.getElementById('status-title').textContent = 'Invalid Link';
+      document.getElementById('status-msg').textContent = 'This verification link is invalid.';
+      return;
+    }
+    try {
+      await api('GET', `/auth/verify-email?token=${token}&email=${encodeURIComponent(email)}`);
+      document.getElementById('status-icon').textContent = '✅';
+      document.getElementById('status-title').textContent = 'Email Verified!';
+      document.getElementById('status-msg').textContent = 'Your email has been verified. You can now login.';
+      document.getElementById('login-link').style.display = 'inline-flex';
+    } catch (err) {
+      document.getElementById('status-icon').textContent = '❌';
+      document.getElementById('status-title').textContent = 'Verification Failed';
+      document.getElementById('status-msg').textContent = err.message;
+    }
+  });
+</script>
+</body>
+</html>

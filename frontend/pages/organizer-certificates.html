@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Certificates - Organizer</title>
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main-content">
+    <header class="topbar" id="topbar"></header>
+    <main class="page-content">
+      <div id="alert-box"></div>
+      <div class="card">
+        <div class="card-header"><h3 class="card-title">🏅 Generate Certificates</h3></div>
+        <div class="card-body">
+          <div class="alert alert-info">ℹ️ Select a completed event and generate certificates for all students who attended. Certificates will be emailed automatically.</div>
+          <div class="form-group" style="max-width:400px">
+            <label class="form-label">Select Event</label>
+            <select id="event-select" class="form-control">
+              <option value="">-- Select event --</option>
+            </select>
+          </div>
+          <button class="btn btn-primary" id="gen-btn" onclick="generateCertificates()">🏅 Generate & Email Certificates</button>
+          <div id="result-box" class="mt-2"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+<script src="../js/api.js"></script>
+<script>
+  const user = requireAuth(['organizer']);
+  if (user) {
+    document.getElementById('sidebar').innerHTML = renderSidebar('organizer', 'organizer-certificates');
+    document.getElementById('topbar').innerHTML = renderTopbar('Certificate Generation');
+    loadEvents();
+  }
+  async function loadEvents() {
+    try {
+      const data = await api('GET', '/events');
+      const sel = document.getElementById('event-select');
+      data.data.forEach(e => sel.innerHTML += `<option value="${e._id}">${e.title} (${formatDate(e.date)})</option>`);
+    } catch (err) { console.error(err); }
+  }
+  async function generateCertificates() {
+    const eventId = document.getElementById('event-select').value;
+    if (!eventId) { showAlert('alert-box', 'Please select an event', 'warning'); return; }
+    if (!confirm('Generate certificates for all attended students? This will send emails.')) return;
+    showLoading('gen-btn', 'Generating...');
+    try {
+      const data = await api('POST', '/certificates/generate', { eventId });
+      showAlert('alert-box', data.message, 'success');
+      const results = data.data || [];
+      document.getElementById('result-box').innerHTML = results.length
+        ? `<div class="card"><div class="card-body"><table><thead><tr><th>Student</th><th>Status</th></tr></thead><tbody>${results.map(r => `<tr><td>${r.student}</td><td>${statusBadge(r.status)}</td></tr>`).join('')}</tbody></table></div></div>`
+        : '';
+    } catch (err) { showAlert('alert-box', err.message, 'error'); }
+    finally { hideLoading('gen-btn'); }
+  }
+</script>
+</body>
+</html>

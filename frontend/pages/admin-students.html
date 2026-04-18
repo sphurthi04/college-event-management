@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Students - Admin</title>
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main-content">
+    <header class="topbar" id="topbar"></header>
+    <main class="page-content">
+      <div id="alert-box"></div>
+      <div class="card">
+        <div class="card-header"><h3 class="card-title">🎓 Registered Students</h3></div>
+        <div class="card-body">
+          <div class="table-wrapper">
+            <table>
+              <thead><tr><th>Name</th><th>Email</th><th>Verified</th><th>Registered</th></tr></thead>
+              <tbody id="students-table"><tr><td colspan="4" class="text-center"><div class="spinner"></div></td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+<script src="../js/api.js"></script>
+<script>
+  const user = requireAuth(['admin']);
+  if (user) {
+    document.getElementById('sidebar').innerHTML = renderSidebar('admin', 'admin-students');
+    document.getElementById('topbar').innerHTML = renderTopbar('Registered Students');
+    loadStudents();
+  }
+  async function loadStudents() {
+    try {
+      const data = await api('GET', '/admin/students');
+      document.getElementById('students-table').innerHTML = data.data.length
+        ? data.data.map(s => `<tr><td><b>${s.name}</b></td><td>${s.email}</td><td>${s.isVerified ? '<span class="badge badge-success">✅ Verified</span>' : '<span class="badge badge-warning">⏳ Pending</span>'}</td><td>${formatDate(s.createdAt)}</td></tr>`).join('')
+        : '<tr><td colspan="4" class="text-center text-muted">No students registered</td></tr>';
+    } catch (err) { showAlert('alert-box', err.message, 'error'); }
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Venue Estimator - Organizer</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <style>
+    .ai-card { background: linear-gradient(135deg, #4F46E5, #7C3AED); color: white; border-radius: 12px; padding: 28px; margin-bottom: 24px; }
+    .result-box { background: white; border-radius: 12px; padding: 24px; border: 2px solid #4F46E5; }
+    .capacity-bar { height: 12px; background: #e5e7eb; border-radius: 6px; overflow: hidden; margin: 8px 0; }
+    .capacity-fill { height: 100%; border-radius: 6px; transition: width 0.8s ease; }
+    .tab-content { display: none; } .tab-content.active { display: block; }
+  </style>
+</head>
+<body>
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main-content">
+    <header class="topbar" id="topbar"></header>
+    <main class="page-content">
+      <div id="alert-box"></div>
+
+      <div class="ai-card">
+        <h2>🤖 AI Venue Capacity Estimator</h2>
+        <p style="opacity:0.85;margin-top:8px">Upload a venue image or enter dimensions to get AI-powered capacity estimates</p>
+      </div>
+
+      <!-- Method Tabs -->
+      <div class="auth-tabs" style="max-width:400px;margin-bottom:24px">
+        <button class="auth-tab active" onclick="switchMethod('image')">📷 Image Upload</button>
+        <button class="auth-tab" onclick="switchMethod('dimensions')">📐 Dimensions</button>
+      </div>
+
+      <!-- Image Upload Method -->
+      <div id="image-method" class="tab-content active">
+        <div class="card">
+          <div class="card-header"><h3 class="card-title">📷 Upload Venue Image</h3></div>
+          <div class="card-body">
+            <div class="form-group">
+              <label class="form-label">Venue Image <span>*</span></label>
+              <input type="file" id="venue-image" class="form-control" accept="image/*" onchange="previewImage(this)">
+              <p class="form-hint">Upload a clear photo of the venue interior for best results</p>
+            </div>
+            <div id="image-preview" style="display:none;margin-bottom:16px">
+              <img id="preview-img" style="max-width:100%;max-height:300px;border-radius:8px;border:1px solid #e5e7eb">
+            </div>
+            <button class="btn btn-primary" id="estimate-img-btn" onclick="estimateFromImage()">🤖 Estimate Capacity</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Dimensions Method -->
+      <div id="dimensions-method" class="tab-content">
+        <div class="card">
+          <div class="card-header"><h3 class="card-title">📐 Enter Venue Dimensions</h3></div>
+          <div class="card-body">
+            <div class="form-grid">
+              <div class="form-group">
+                <label class="form-label">Length (feet) <span>*</span></label>
+                <input type="number" id="dim-length" class="form-control" placeholder="e.g. 100" min="1">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Width (feet) <span>*</span></label>
+                <input type="number" id="dim-width" class="form-control" placeholder="e.g. 60" min="1">
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Layout Type</label>
+              <select id="dim-layout" class="form-control">
+                <option value="theater">🎭 Theater (rows of chairs)</option>
+                <option value="classroom">📚 Classroom</option>
+                <option value="banquet">🍽️ Banquet</option>
+                <option value="reception">🎉 Reception/Standing</option>
+                <option value="conference">💼 Conference</option>
+              </select>
+            </div>
+            <button class="btn btn-primary" id="estimate-dim-btn" onclick="estimateFromDimensions()">📐 Calculate Capacity</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Results -->
+      <div id="results-section" style="display:none;margin-top:24px">
+        <div class="result-box">
+          <h3 style="color:#4F46E5;margin-bottom:20px">📊 Capacity Estimation Results</h3>
+          <div id="results-content"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<script src="../js/api.js"></script>
+<script>
+  const AI_URL = 'http://localhost:5001';
+  const user = requireAuth(['organizer']);
+  if (user) {
+    document.getElementById('sidebar').innerHTML = renderSidebar('organizer', 'organizer-ai');
+    document.getElementById('topbar').innerHTML = renderTopbar('AI Venue Estimator');
+  }
+
+  function switchMethod(method) {
+    document.querySelectorAll('.auth-tab').forEach((t, i) => t.classList.toggle('active', (method === 'image' && i === 0) || (method === 'dimensions' && i === 1)));
+    document.getElementById('image-method').classList.toggle('active', method === 'image');
+    document.getElementById('dimensions-method').classList.toggle('active', method === 'dimensions');
+    document.getElementById('results-section').style.display = 'none';
+  }
+
+  function previewImage(input) {
+    if (input.files && input.files[0]) {
+      const reader = new FileReader();
+      reader.onload = e => {
+        document.getElementById('preview-img').src = e.target.result;
+        document.getElementById('image-preview').style.display = 'block';
+      };
+      reader.readAsDataURL(input.files[0]);
+    }
+  }
+
+  async function estimateFromImage() {
+    const file = document.getElementById('venue-image').files[0];
+    if (!file) { showAlert('alert-box', 'Please select an image', 'warning'); return; }
+    showLoading('estimate-img-btn', 'Analyzing...');
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+      const res = await fetch(`${AI_URL}/estimate-capacity`, { method: 'POST', body: formData });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.message);
+      displayResults(data.data);
+    } catch (err) {
+      showAlert('alert-box', `AI Service Error: ${err.message}. Make sure the AI module is running on port 5001.`, 'error');
+    } finally { hideLoading('estimate-img-btn'); }
+  }
+
+  async function estimateFromDimensions() {
+    const length = document.getElementById('dim-length').value;
+    const width = document.getElementById('dim-width').value;
+    const layout = document.getElementById('dim-layout').value;
+    if (!length || !width) { showAlert('alert-box', 'Please enter length and width', 'warning'); return; }
+    showLoading('estimate-dim-btn', 'Calculating...');
+    try {
+      const res = await fetch(`${AI_URL}/estimate-by-dimensions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ length_ft: parseFloat(length), width_ft: parseFloat(width), layout_type: layout })
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.message);
+      displayResults(data.data);
+    } catch (err) {
+      showAlert('alert-box', `AI Service Error: ${err.message}. Make sure the AI module is running on port 5001.`, 'error');
+    } finally { hideLoading('estimate-dim-btn'); }
+  }
+
+  function displayResults(data) {
+    const max = data.estimated_capacity || data.maximum || 0;
+    const comfortable = data.comfortable_capacity || data.comfortable || Math.floor(max * 0.75);
+    const social = data.social_distancing_capacity || data.social_distancing || Math.floor(max * 0.5);
+
+    document.getElementById('results-content').innerHTML = `
+      <div class="stats-grid" style="margin-bottom:20px">
+        <div class="stat-card"><div class="stat-icon red">🔴</div><div class="stat-info"><div class="stat-value">${max}</div><div class="stat-label">Maximum Capacity</div></div></div>
+        <div class="stat-card"><div class="stat-icon orange">🟡</div><div class="stat-info"><div class="stat-value">${comfortable}</div><div class="stat-label">Comfortable (75%)</div></div></div>
+        <div class="stat-card"><div class="stat-icon green">🟢</div><div class="stat-info"><div class="stat-value">${social}</div><div class="stat-label">Social Distancing (50%)</div></div></div>
+      </div>
+      ${data.area_sqft ? `<p class="text-muted mb-2">📐 Floor Area: <b>${data.area_sqft} sq ft</b> | Layout: <b>${data.layout_type}</b> | ${data.sqft_per_person} sq ft/person</p>` : ''}
+      <div>
+        <p style="font-size:13px;font-weight:600;margin-bottom:4px">Maximum Capacity</p>
+        <div class="capacity-bar"><div class="capacity-fill" style="width:100%;background:#EF4444"></div></div>
+        <p style="font-size:13px;font-weight:600;margin-bottom:4px">Comfortable Capacity</p>
+        <div class="capacity-bar"><div class="capacity-fill" style="width:75%;background:#F59E0B"></div></div>
+        <p style="font-size:13px;font-weight:600;margin-bottom:4px">Social Distancing</p>
+        <div class="capacity-bar"><div class="capacity-fill" style="width:50%;background:#10B981"></div></div>
+      </div>
+      ${data.note ? `<p class="text-muted mt-2" style="font-size:13px">ℹ️ ${data.note}</p>` : ''}
+      <div class="alert alert-info mt-2">💡 <b>Recommendation:</b> Use the "Comfortable Capacity" (${comfortable}) as your event's maximum participants for the best experience.</div>`;
+
+    document.getElementById('results-section').style.display = 'block';
+    document.getElementById('results-section').scrollIntoView({ behavior: 'smooth' });
+  }
+</script>
+</body>
+</html>

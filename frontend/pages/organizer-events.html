@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Events - Organizer</title>
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main-content">
+    <header class="topbar" id="topbar"></header>
+    <main class="page-content">
+      <div id="alert-box"></div>
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title">📅 My Events</h3>
+          <button class="btn btn-primary" onclick="openModal()">+ Create Event</button>
+        </div>
+        <div class="card-body">
+          <div id="events-container" class="events-grid"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- Create/Edit Event Modal -->
+<div class="modal-overlay" id="event-modal">
+  <div class="modal" style="max-width:700px">
+    <div class="modal-header">
+      <h3 class="modal-title" id="modal-title">Create New Event</h3>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="modal-alert"></div>
+      <form id="event-form" onsubmit="handleEventSubmit(event)">
+        <input type="hidden" id="event-id">
+        <div class="form-group">
+          <label class="form-label">Event Title <span>*</span></label>
+          <input type="text" id="e-title" class="form-control" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Description <span>*</span></label>
+          <textarea id="e-description" class="form-control" rows="3" required></textarea>
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label">Category <span>*</span></label>
+            <select id="e-category" class="form-control" required>
+              <option value="">Select category</option>
+              <option value="technical">💻 Technical</option>
+              <option value="cultural">🎭 Cultural</option>
+              <option value="sports">⚽ Sports</option>
+              <option value="academic">📚 Academic</option>
+              <option value="workshop">🔧 Workshop</option>
+              <option value="seminar">🎤 Seminar</option>
+              <option value="fest">🎉 Fest</option>
+              <option value="other">📌 Other</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Venue <span>*</span></label>
+            <select id="e-venue" class="form-control" required onchange="checkAvailability()">
+              <option value="">Select venue</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-grid-3">
+          <div class="form-group">
+            <label class="form-label">Date <span>*</span></label>
+            <input type="date" id="e-date" class="form-control" required onchange="checkAvailability()">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Start Time <span>*</span></label>
+            <input type="time" id="e-start" class="form-control" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">End Time <span>*</span></label>
+            <input type="time" id="e-end" class="form-control" required>
+          </div>
+        </div>
+        <div id="availability-info" style="margin-bottom:16px"></div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label">Max Participants <span>*</span></label>
+            <input type="number" id="e-max" class="form-control" required min="1">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Google Form Link</label>
+            <input type="url" id="e-form" class="form-control" placeholder="https://forms.google.com/...">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">
+            <input type="checkbox" id="e-intercollege"> Inter-College Event
+          </label>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Event Banner</label>
+          <input type="file" id="e-banner" class="form-control" accept="image/*">
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" id="event-submit-btn" onclick="document.getElementById('event-form').requestSubmit()">Create Event</button>
+    </div>
+  </div>
+</div>
+
+<script src="../js/api.js"></script>
+<script>
+  const user = requireAuth(['organizer']);
+  let venues = [];
+
+  if (user) {
+    document.getElementById('sidebar').innerHTML = renderSidebar('organizer', 'organizer-events');
+    document.getElementById('topbar').innerHTML = renderTopbar('My Events');
+    loadVenues();
+    loadEvents();
+  }
+
+  async function loadVenues() {
+    try {
+      const data = await api('GET', '/venues');
+      venues = data.data || [];
+      const sel = document.getElementById('e-venue');
+      
+      if (venues.length === 0) {
+        sel.innerHTML += `<option value="" disabled>No venues available</option>`;
+        return;
+      }
+      
+      venues.forEach(v => {
+        sel.innerHTML += `<option value="${v._id}">${v.name} (Cap: ${v.capacity})</option>`;
+      });
+    } catch (err) { 
+      console.error('Error loading venues:', err);
+      const sel = document.getElementById('e-venue');
+      sel.innerHTML += `<option value="" disabled>Error loading venues</option>`;
+    }
+  }
+
+  async function loadEvents() {
+    try {
+      const data = await api('GET', '/events');
+      document.getElementById('events-container').innerHTML = data.data.length
+        ? data.data.map(e => `
+          <div class="event-card">
+            <div class="event-card-banner">${categoryEmoji[e.category] || '📌'}</div>
+            <div class="event-card-body">
+              <span class="event-card-category">${e.category}</span>
+              <div class="event-card-title">${e.title}</div>
+              <div class="event-card-meta">
+                <span>📅 ${formatDate(e.date)}</span>
+                <span>⏰ ${e.startTime} - ${e.endTime}</span>
+                <span>🏛️ ${e.venue?.name || '-'}</span>
+                <span>👥 ${e.registeredCount}/${e.maxParticipants}</span>
+              </div>
+            </div>
+            <div class="event-card-footer">
+              ${statusBadge(e.status)}
+              <div style="display:flex;gap:8px">
+                <button class="btn btn-sm btn-secondary" onclick="editEvent('${e._id}')">✏️</button>
+                <button class="btn btn-sm btn-danger" onclick="deleteEvent('${e._id}')">🗑️</button>
+              </div>
+            </div>
+          </div>`).join('')
+        : '<div class="empty-state"><div class="empty-icon">📅</div><h3>No events yet</h3><p>Create your first event!</p></div>';
+    } catch (err) { showAlert('alert-box', err.message, 'error'); }
+  }
+
+  async function checkAvailability() {
+    const venueId = document.getElementById('e-venue').value;
+    const date = document.getElementById('e-date').value;
+    if (!venueId || !date) return;
+    try {
+      const data = await api('GET', `/events/venue/${venueId}/availability?date=${date}`);
+      const booked = data.data;
+      const info = document.getElementById('availability-info');
+      if (booked.length) {
+        info.innerHTML = `<div class="alert alert-warning">⚠️ Venue has ${booked.length} booking(s) on this date: ${booked.map(b => `${b.startTime}-${b.endTime}`).join(', ')}</div>`;
+      } else {
+        info.innerHTML = `<div class="alert alert-success">✅ Venue is available on this date!</div>`;
+      }
+    } catch (err) { console.error(err); }
+  }
+
+  function openModal() {
+    document.getElementById('event-modal').classList.add('active');
+    document.getElementById('modal-title').textContent = 'Create New Event';
+    document.getElementById('event-submit-btn').textContent = 'Create Event';
+    document.getElementById('event-form').reset();
+    document.getElementById('event-id').value = '';
+    document.getElementById('availability-info').innerHTML = '';
+    // Set min date to today
+    document.getElementById('e-date').min = new Date().toISOString().split('T')[0];
+  }
+
+  function closeModal() { document.getElementById('event-modal').classList.remove('active'); }
+
+  async function editEvent(id) {
+    try {
+      const data = await api('GET', `/events/${id}`);
+      const e = data.data;
+      openModal();
+      document.getElementById('modal-title').textContent = 'Edit Event';
+      document.getElementById('event-submit-btn').textContent = 'Update Event';
+      document.getElementById('event-id').value = e._id;
+      document.getElementById('e-title').value = e.title;
+      document.getElementById('e-description').value = e.description;
+      document.getElementById('e-category').value = e.category;
+      document.getElementById('e-venue').value = e.venue?._id || '';
+      document.getElementById('e-date').value = e.date?.split('T')[0];
+      document.getElementById('e-start').value = e.startTime;
+      document.getElementById('e-end').value = e.endTime;
+      document.getElementById('e-max').value = e.maxParticipants;
+      document.getElementById('e-form').value = e.googleFormLink || '';
+      document.getElementById('e-intercollege').checked = e.isInterCollege;
+    } catch (err) { showAlert('alert-box', err.message, 'error'); }
+  }
+
+  async function handleEventSubmit(evt) {
+    evt.preventDefault();
+    const id = document.getElementById('event-id').value;
+    const formData = new FormData();
+    formData.append('title', document.getElementById('e-title').value);
+    formData.append('description', document.getElementById('e-description').value);
+    formData.append('category', document.getElementById('e-category').value);
+    formData.append('venue', document.getElementById('e-venue').value);
+    formData.append('date', document.getElementById('e-date').value);
+    formData.append('startTime', document.getElementById('e-start').value);
+    formData.append('endTime', document.getElementById('e-end').value);
+    formData.append('maxParticipants', document.getElementById('e-max').value);
+    formData.append('googleFormLink', document.getElementById('e-form').value);
+    formData.append('isInterCollege', document.getElementById('e-intercollege').checked);
+    const banner = document.getElementById('e-banner').files[0];
+    if (banner) formData.append('banner', banner);
+
+    showLoading('event-submit-btn', 'Saving...');
+    try {
+      if (id) await api('PUT', `/events/${id}`, formData, true);
+      else await api('POST', '/events', formData, true);
+      showAlert('alert-box', `Event ${id ? 'updated' : 'created'} successfully!`, 'success');
+      closeModal(); loadEvents();
+    } catch (err) { showAlert('modal-alert', err.message, 'error'); }
+    finally { hideLoading('event-submit-btn'); }
+  }
+
+  async function deleteEvent(id) {
+    if (!confirm('Delete this event?')) return;
+    try {
+      await api('DELETE', `/events/${id}`);
+      showAlert('alert-box', 'Event deleted.', 'success');
+      loadEvents();
+    } catch (err) { showAlert('alert-box', err.message, 'error'); }
+  }
+</script>
+</body>
+</html>

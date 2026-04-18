@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Manage Organizers - Admin</title>
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main-content">
+    <header class="topbar" id="topbar"></header>
+    <main class="page-content">
+      <div id="alert-box"></div>
+
+      <!-- Filter Tabs -->
+      <div style="display:flex;gap:8px;margin-bottom:20px">
+        <button class="btn btn-primary btn-sm" onclick="loadOrganizers('')">All</button>
+        <button class="btn btn-warning btn-sm" onclick="loadOrganizers('pending')">⏳ Pending</button>
+        <button class="btn btn-success btn-sm" onclick="loadOrganizers('approved')">✅ Approved</button>
+        <button class="btn btn-danger btn-sm" onclick="loadOrganizers('rejected')">❌ Rejected</button>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title">👥 Club Organizers</h3>
+        </div>
+        <div class="card-body">
+          <div class="table-wrapper">
+            <table>
+              <thead><tr><th>Name</th><th>Email</th><th>College</th><th>Club</th><th>Phone</th><th>Status</th><th>Registered</th><th>Actions</th></tr></thead>
+              <tbody id="organizers-table"><tr><td colspan="8" class="text-center"><div class="spinner"></div></td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<script src="../js/api.js"></script>
+<script>
+  const user = requireAuth(['admin']);
+  if (user) {
+    document.getElementById('sidebar').innerHTML = renderSidebar('admin', 'admin-organizers');
+    document.getElementById('topbar').innerHTML = renderTopbar('Manage Organizers');
+    loadOrganizers('');
+  }
+
+  async function loadOrganizers(status) {
+    try {
+      const url = status ? `/admin/organizers?status=${status}` : '/admin/organizers';
+      const data = await api('GET', url);
+      const orgs = data.data;
+      document.getElementById('organizers-table').innerHTML = orgs.length
+        ? orgs.map(o => `
+          <tr>
+            <td><b>${o.name}</b></td>
+            <td>${o.email}</td>
+            <td>${o.collegeName}</td>
+            <td>${o.clubName}</td>
+            <td>${o.phone || '-'}</td>
+            <td>${statusBadge(o.status)}</td>
+            <td>${formatDate(o.createdAt)}</td>
+            <td>
+              ${o.status === 'pending' ? `
+                <button class="btn btn-sm btn-success" onclick="approveOrg('${o._id}')">✅ Approve</button>
+                <button class="btn btn-sm btn-danger" onclick="rejectOrg('${o._id}')">❌ Reject</button>
+              ` : o.status === 'approved' ? `
+                <button class="btn btn-sm btn-danger" onclick="rejectOrg('${o._id}')">❌ Reject</button>
+              ` : `
+                <button class="btn btn-sm btn-success" onclick="approveOrg('${o._id}')">✅ Approve</button>
+              `}
+            </td>
+          </tr>`).join('')
+        : '<tr><td colspan="8" class="text-center text-muted">No organizers found</td></tr>';
+    } catch (err) { showAlert('alert-box', err.message, 'error'); }
+  }
+
+  async function approveOrg(id) {
+    if (!confirm('Approve this organizer?')) return;
+    try {
+      await api('PUT', `/admin/organizers/${id}/approve`);
+      showAlert('alert-box', 'Organizer approved! Notification email sent.', 'success');
+      loadOrganizers('');
+    } catch (err) { showAlert('alert-box', err.message, 'error'); }
+  }
+
+  async function rejectOrg(id) {
+    if (!confirm('Reject this organizer?')) return;
+    try {
+      await api('PUT', `/admin/organizers/${id}/reject`);
+      showAlert('alert-box', 'Organizer rejected.', 'warning');
+      loadOrganizers('');
+    } catch (err) { showAlert('alert-box', err.message, 'error'); }
+  }
+</script>
+</body>
+</html>

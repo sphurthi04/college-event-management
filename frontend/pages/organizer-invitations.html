@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Invitations - Organizer</title>
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main-content">
+    <header class="topbar" id="topbar"></header>
+    <main class="page-content">
+      <div id="alert-box"></div>
+
+      <div class="card mb-3">
+        <div class="card-header">
+          <h3 class="card-title">✉️ Send Inter-College Invitation</h3>
+        </div>
+        <div class="card-body">
+          <form id="invite-form" onsubmit="sendInvitation(event)" style="max-width:600px">
+            <div class="form-group">
+              <label class="form-label">Select Event <span>*</span></label>
+              <select id="inv-event" class="form-control" required>
+                <option value="">-- Select event --</option>
+              </select>
+            </div>
+            <div class="form-grid">
+              <div class="form-group">
+                <label class="form-label">To College <span>*</span></label>
+                <input type="text" id="inv-college" class="form-control" placeholder="College name" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Contact Email <span>*</span></label>
+                <input type="email" id="inv-email" class="form-control" placeholder="college@email.com" required>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Message</label>
+              <textarea id="inv-message" class="form-control" rows="3" placeholder="Optional personal message..."></textarea>
+            </div>
+            <button type="submit" id="send-btn" class="btn btn-primary">📨 Send Invitation</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><h3 class="card-title">📬 Sent Invitations</h3></div>
+        <div class="card-body">
+          <div class="table-wrapper">
+            <table>
+              <thead><tr><th>Event</th><th>To College</th><th>Email</th><th>Status</th><th>Sent At</th></tr></thead>
+              <tbody id="invitations-table"><tr><td colspan="5" class="text-center"><div class="spinner"></div></td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<script src="../js/api.js"></script>
+<script>
+  const user = requireAuth(['organizer']);
+  if (user) {
+    document.getElementById('sidebar').innerHTML = renderSidebar('organizer', 'organizer-invitations');
+    document.getElementById('topbar').innerHTML = renderTopbar('Inter-College Invitations');
+    loadEvents();
+    loadInvitations();
+  }
+
+  async function loadEvents() {
+    try {
+      const data = await api('GET', '/events');
+      const sel = document.getElementById('inv-event');
+      data.data.forEach(e => sel.innerHTML += `<option value="${e._id}">${e.title}</option>`);
+    } catch (err) { console.error(err); }
+  }
+
+  async function loadInvitations() {
+    try {
+      const data = await api('GET', '/invitations');
+      document.getElementById('invitations-table').innerHTML = data.data.length
+        ? data.data.map(inv => `
+          <tr>
+            <td><b>${inv.event?.title || '-'}</b></td>
+            <td>${inv.toCollege}</td>
+            <td>${inv.toEmail}</td>
+            <td>${statusBadge(inv.status)}</td>
+            <td>${formatDate(inv.sentAt)}</td>
+          </tr>`).join('')
+        : '<tr><td colspan="5" class="text-center text-muted">No invitations sent yet</td></tr>';
+    } catch (err) { showAlert('alert-box', err.message, 'error'); }
+  }
+
+  async function sendInvitation(e) {
+    e.preventDefault();
+    showLoading('send-btn', 'Sending...');
+    try {
+      await api('POST', '/invitations', {
+        eventId: document.getElementById('inv-event').value,
+        toCollege: document.getElementById('inv-college').value,
+        toEmail: document.getElementById('inv-email').value,
+        message: document.getElementById('inv-message').value
+      });
+      showAlert('alert-box', 'Invitation sent successfully! Email delivered.', 'success');
+      document.getElementById('invite-form').reset();
+      loadInvitations();
+    } catch (err) { showAlert('alert-box', err.message, 'error'); }
+    finally { hideLoading('send-btn'); }
+  }
+</script>
+</body>
+</html>
